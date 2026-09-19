@@ -1,12 +1,15 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadContentFromMessage, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const express = require('express');
 const http = require('http');
 const pino = require('pino');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 
 let sock;
+const sessionPath = path.join(__dirname, 'session');
 
 // Global Settings State
 const botSettings = {
@@ -19,7 +22,7 @@ const botSettings = {
 
 app.use(express.json());
 
-// Main Web Interface (Pairing Code Panel)
+// Web Interface (Pairing Code Panel)
 app.get('/', (req, res) => {
     res.send(`
     <!DOCTYPE html>
@@ -94,13 +97,14 @@ app.get('/', (req, res) => {
     `);
 });
 
-// Keep-Alive route
 app.get('/ping', (req, res) => res.send('OK'));
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('session');
+    const { version } = await fetchLatestBaileysVersion();
 
     sock = makeWASocket({
+        version,
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
         auth: state,
@@ -236,11 +240,11 @@ async function startBot() {
                 contextInfo: {
                     externalAdReply: {
                         title: "⊰𝐅𝐀𝐌𝐎𝐔𝐒 𝐁𝐀𝐓𝐌𝐀𝐍⊱",
-                        body: "Click to join our WhatsApp Channel",
+                        body: "Click to join WhatsApp Channel",
                         mediaType: 1,
                         sourceUrl: "https://whatsapp.com/channel/0029VbDCBI247XeL2zDjH23W",
-                        renderLargerThumbnail: true,
-                        thumbnailUrl: 'https://cdn.phototourl.com/free/2026-09-19-360ade3c-bad1-4cfb-8e77-506cfc80e765.jpg'
+                        renderLargerThumbnail: false,
+                        showAdAttribution: true
                     }
                 }
             });
@@ -339,7 +343,7 @@ async function startBot() {
             }
         }
 
-        // 4. SECRET TOOLS (.vv - View Once Recovery)
+        // 4. SECRET TOOLS (.vv)
         if (command === 'vv') {
             const quotedMsg = msg.message.extendedTextMessage?.contextInfo?.quotedMessage;
             const viewOnce = quotedMsg?.viewOnceMessage?.message || quotedMsg?.viewOnceMessageV2?.message;
@@ -415,22 +419,31 @@ async function startBot() {
     });
 }
 
-// Pairing Code Route
+// Fixed Pairing Code Route
 app.post('/get-pairing-code', async (req, res) => {
     let phone = req.body.phone;
     if (!phone) return res.status(400).json({ error: 'Phone number required' });
     phone = phone.replace(/[^0-9]/g, '');
 
     try {
-        if (!sock || !sock.authState) {
-            return res.status(500).json({ error: 'Bot is initializing... Please try in 5 seconds.' });
+        if (fs.existsSync(sessionPath)) {
+            fs.rmSync(sessionPath, { recursive: true, force: true });
         }
-        let code = await sock.requestPairingCode(phone);
-        code = code?.match(/.{1,4}/g)?.join('-') || code;
-        res.json({ code });
+        await startBot();
+        
+        setTimeout(async () => {
+            try {
+                let code = await sock.requestPairingCode(phone);
+                code = code?.match(/.{1,4}/g)?.join('-') || code;
+                res.json({ code });
+            } catch (e) {
+                res.status(500).json({ error: 'Failed to request pairing code. Please retry.' });
+            }
+        }, 3000);
+
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Failed to generate code. Ensure bot service is active!' });
+        res.status(500).json({ error: 'Server initialization error!' });
     }
 });
 
@@ -439,4 +452,4 @@ server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     startBot();
 });
-                                             
+            
