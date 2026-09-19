@@ -8,128 +8,32 @@ const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
-
 let sock;
 const sessionPath = path.join(__dirname, 'session');
 
-// Global Settings State
-const botSettings = {
-    autoreact: false,
-    autostatusview: false,
-    autostatuslike: false,
-    antilink: {},
-    warnings: {}
-};
+const botSettings = { autoreact: false, autostatusview: false, autostatuslike: false, antilink: {}, warnings: {} };
 
 app.use(express.json());
 
-// Web Interface (Pairing Code Panel)
 app.get('/', (req, res) => {
-    res.send(`
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>BATMAN MD BOT - PAIRING PANEL</title>
-        <style>
-            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
-            body { background: #0a0a0c; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-            .card { background: #121318; border: 1px solid #1f222e; padding: 30px; border-radius: 16px; max-width: 400px; width: 100%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-            .avatar { width: 90px; height: 90px; border-radius: 50%; border: 3px solid #ff2a2a; margin-bottom: 15px; object-fit: cover; }
-            h2 { font-size: 20px; color: #ff2a2a; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
-            p { font-size: 13px; color: #a0a5b5; margin-bottom: 20px; }
-            input { width: 100%; padding: 14px; background: #1a1c24; border: 1px solid #2a2e3d; border-radius: 8px; color: #fff; font-size: 15px; text-align: center; margin-bottom: 15px; outline: none; }
-            input:focus { border-color: #ff2a2a; }
-            button { width: 100%; padding: 14px; background: #ff2a2a; color: #fff; border: none; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.3s; }
-            button:hover { background: #d61c1c; }
-            .code-box { margin-top: 20px; padding: 15px; background: #1a1c24; border: 1px dashed #ff2a2a; border-radius: 8px; font-size: 22px; font-weight: bold; color: #00ff88; letter-spacing: 3px; display: none; }
-            .loading { display: none; color: #ffca28; margin-top: 15px; font-size: 14px; }
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <img src="https://cdn.phototourl.com/free/2026-09-19-360ade3c-bad1-4cfb-8e77-506cfc80e765.jpg" class="avatar" alt="Logo">
-            <h2>BATMAN MD BOT</h2>
-            <p>Enter your WhatsApp Number with Country Code (e.g. 923001234567)</p>
-            <input type="text" id="phone" placeholder="923xxxxxxxxx">
-            <button onclick="getCode()">GET PAIRING CODE</button>
-            <div id="loading" class="loading">Generating Code... Please wait!</div>
-            <div id="code" class="code-box"></div>
-        </div>
-
-        <script>
-            async function getCode() {
-                const phone = document.getElementById('phone').value.trim();
-                const loading = document.getElementById('loading');
-                const codeBox = document.getElementById('code');
-
-                if(!phone) {
-                    alert('Please enter a valid phone number!');
-                    return;
-                }
-
-                loading.style.display = 'block';
-                codeBox.style.display = 'none';
-
-                try {
-                    const res = await fetch('/get-pairing-code', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ phone })
-                    });
-                    const data = await res.json();
-                    loading.style.display = 'none';
-
-                    if(data.code) {
-                        codeBox.innerText = data.code;
-                        codeBox.style.display = 'block';
-                    } else {
-                        alert(data.error || 'Failed to get code!');
-                    }
-                } catch(err) {
-                    loading.style.display = 'none';
-                    alert('Error connecting to server!');
-                }
-            }
-        </script>
-    </body>
-    </html>
-    `);
+    res.send(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>BATMAN MD BOT</title><style>*{box-sizing:border-box;margin:0;padding:0;font-family:'Poppins',sans-serif;}body{background:#0a0a0c;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;}.card{background:#121318;border:1px solid #1f222e;padding:30px;border-radius:16px;max-width:400px;width:100%;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.5);}.avatar{width:90px;height:90px;border-radius:50%;border:3px solid #ff2a2a;margin-bottom:15px;object-fit:cover;}h2{font-size:20px;color:#ff2a2a;margin-bottom:5px;letter-spacing:1px;}p{font-size:13px;color:#a0a5b5;margin-bottom:20px;}input{width:100%;padding:14px;background:#1a1c24;border:1px solid #2a2e3d;border-radius:8px;color:#fff;font-size:15px;text-align:center;margin-bottom:15px;outline:none;}input:focus{border-color:#ff2a2a;}button{width:100%;padding:14px;background:#ff2a2a;color:#fff;border:none;border-radius:8px;font-weight:bold;font-size:15px;cursor:pointer;}.code-box{margin-top:20px;padding:15px;background:#1a1c24;border:1px dashed #ff2a2a;border-radius:8px;font-size:22px;font-weight:bold;color:#00ff88;letter-spacing:3px;display:none;}.loading{display:none;color:#ffca28;margin-top:15px;font-size:14px;}</style></head><body><div class="card"><img src="https://cdn.phototourl.com/free/2026-09-19-360ade3c-bad1-4cfb-8e77-506cfc80e765.jpg" class="avatar"><h2>BATMAN MD BOT</h2><p>Enter WhatsApp Number with Country Code</p><input type="text" id="phone" placeholder="923xxxxxxxxx"><button onclick="getCode()">GET PAIRING CODE</button><div id="loading" class="loading">Generating Code...</div><div id="code" class="code-box"></div></div><script>async function getCode(){const phone=document.getElementById('phone').value.trim();if(!phone)return alert('Enter number!');document.getElementById('loading').style.display='block';document.getElementById('code').style.display='none';try{const res=await fetch('/get-pairing-code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone})});const data=await res.json();document.getElementById('loading').style.display='none';if(data.code){document.getElementById('code').innerText=data.code;document.getElementById('code').style.display='block';}else{alert(data.error||'Failed!');}}catch(e){document.getElementById('loading').style.display='none';alert('Error!');}}</script></body></html>`);
 });
 
-// Keep Alive Endpoint
 app.get('/ping', (req, res) => res.send('PONG'));
-
-// Anti-Sleep Self Ping Engine
-setInterval(() => {
-    axios.get(`http://localhost:${process.env.PORT || 3000}/ping`)
-        .then(() => console.log('🔄 Anti-Sleep Keep Alive Ping Sent!'))
-        .catch(() => {});
-}, 4 * 60 * 1000); // Har 4 minute baad ping
+setInterval(() => { axios.get(`http://localhost:${process.env.PORT || 3000}/ping`).catch(() => {}); }, 4 * 60 * 1000);
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('session');
     const { version } = await fetchLatestBaileysVersion();
 
-    sock = makeWASocket({
-        version,
-        logger: pino({ level: 'silent' }),
-        printQRInTerminal: false,
-        auth: state,
-        browser: ["Ubuntu", "Chrome", "20.0.04"]
-    });
-
+    sock = makeWASocket({ version, logger: pino({ level: 'silent' }), printQRInTerminal: false, auth: state, browser: ["Ubuntu", "Chrome", "20.0.04"] });
     sock.ev.on('creds.update', saveCreds);
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
-        if (connection === 'open') {
-            console.log('✅ BATMAN MD BOT Connected & 24/7 Active!');
-        }
+        if (connection === 'open') console.log('✅ BATMAN MD BOT Connected!');
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) startBot();
+            if (lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut) startBot();
         }
     });
 
@@ -138,7 +42,6 @@ async function startBot() {
         if (!msg || !msg.message) return;
         const from = msg.key.remoteJid;
 
-        // Auto Status Handler
         if (from === 'status@broadcast') {
             if (botSettings.autostatusview) await sock.readMessages([msg.key]);
             if (botSettings.autostatuslike) await sock.sendMessage(from, { react: { text: '💚', key: msg.key } });
@@ -148,13 +51,11 @@ async function startBot() {
         const isGroup = from.endsWith('@g.us');
         const text = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption || msg.message.videoMessage?.caption || '';
 
-        // Auto React
         if (botSettings.autoreact && text && !text.startsWith('.')) {
             const emojis = ['🔥', '⚡', '🤖', '👑', '💯'];
             await sock.sendMessage(from, { react: { text: emojis[Math.floor(Math.random() * emojis.length)], key: msg.key } });
         }
 
-        // AntiLink Feature
         if (isGroup && botSettings.antilink[from] && (text.includes('chat.whatsapp.com/') || text.includes('http://') || text.includes('https://'))) {
             await sock.sendMessage(from, { delete: msg.key });
             await sock.sendMessage(from, { text: '⚠️ Group mein links allowed nahi hain!' });
@@ -162,12 +63,11 @@ async function startBot() {
         }
 
         if (!text.startsWith('.')) return;
-
         const command = text.slice(1).trim().split(' ')[0].toLowerCase();
         const args = text.trim().split(/ +/).slice(1);
         const query = args.join(' ');
 
-        // 1. MENU COMMAND
+        // 1. ORIGINAL FULL MENU CARD
         if (command === 'menu' || command === 'help') {
             const menuText = `╭━━━〔 🔥 𝘽𝘼𝙏𝙈𝘼𝙉 𝙈𝘿 𝘽𝙊𝙏 🔥 〕━━━╮
 ┃ 
@@ -258,28 +158,15 @@ async function startBot() {
                 }
             });
         }
+        else if (command === 'autoreact') { botSettings.autoreact = args[0] === 'on'; await sock.sendMessage(from, { text: `Auto React: ${botSettings.autoreact ? 'ON' : 'OFF'}` }); }
+        else if (command === 'autostatusview') { botSettings.autostatusview = args[0] === 'on'; await sock.sendMessage(from, { text: `Auto Status View: ${botSettings.autostatusview ? 'ON' : 'OFF'}` }); }
+        else if (command === 'autostatuslike') { botSettings.autostatuslike = args[0] === 'on'; await sock.sendMessage(from, { text: `Auto Status Like: ${botSettings.autostatuslike ? 'ON' : 'OFF'}` }); }
 
-        // 2. AUTO SETTINGS
-        else if (command === 'autoreact') {
-            botSettings.autoreact = args[0] === 'on';
-            await sock.sendMessage(from, { text: `Auto React: ${botSettings.autoreact ? 'ON' : 'OFF'}` });
-        }
-        else if (command === 'autostatusview') {
-            botSettings.autostatusview = args[0] === 'on';
-            await sock.sendMessage(from, { text: `Auto Status View: ${botSettings.autostatusview ? 'ON' : 'OFF'}` });
-        }
-        else if (command === 'autostatuslike') {
-            botSettings.autostatuslike = args[0] === 'on';
-            await sock.sendMessage(from, { text: `Auto Status Like: ${botSettings.autostatuslike ? 'ON' : 'OFF'}` });
-        }
-
-        // 3. GROUP CONTROL
         else if (isGroup) {
             if (command === 'tagall' || command === 'hidetag') {
                 const metadata = await sock.groupMetadata(from);
                 const mentions = metadata.participants.map(p => p.id);
-                let response = command === 'tagall' ? '📢 *EVERYONE*:\n\n' + mentions.map(m => `@${m.split('@')[0]}`).join('\n') : query;
-                await sock.sendMessage(from, { text: response, mentions });
+                await sock.sendMessage(from, { text: command === 'tagall' ? '📢 *EVERYONE*:\n\n' + mentions.map(m => `@${m.split('@')[0]}`).join('\n') : query, mentions });
             }
             else if (command === 'adminlist') {
                 const metadata = await sock.groupMetadata(from);
@@ -296,15 +183,15 @@ async function startBot() {
             }
             else if (command === 'revoke') {
                 await sock.groupRevokeInvite(from);
-                await sock.sendMessage(from, { text: '✅ Invite link reset ho gaya hai!' });
+                await sock.sendMessage(from, { text: '✅ Invite link reset ho gaya!' });
             }
             else if (command === 'mute' || (command === 'group' && args[0] === 'close')) {
                 await sock.groupSettingUpdate(from, 'announcement');
-                await sock.sendMessage(from, { text: '🔇 Group close/mute ho gaya!' });
+                await sock.sendMessage(from, { text: '🔇 Group close ho gaya!' });
             }
             else if (command === 'unmute' || (command === 'group' && args[0] === 'open')) {
                 await sock.groupSettingUpdate(from, 'not_announcement');
-                await sock.sendMessage(from, { text: '🔊 Group open/unmute ho gaya!' });
+                await sock.sendMessage(from, { text: '🔊 Group open ho gaya!' });
             }
             else if (command === 'antilink') {
                 botSettings.antilink[from] = args[0] === 'on';
@@ -312,17 +199,10 @@ async function startBot() {
             }
             else if (command === 'kick') {
                 const mentioned = msg.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-                if (mentioned) {
-                    await sock.groupParticipantsUpdate(from, [mentioned], 'remove');
-                    await sock.sendMessage(from, { text: '❌ Member removed!' });
-                }
+                if (mentioned) await sock.groupParticipantsUpdate(from, [mentioned], 'remove');
             }
             else if (command === 'add') {
-                if (query) {
-                    const number = query.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-                    await sock.groupParticipantsUpdate(from, [number], 'add');
-                    await sock.sendMessage(from, { text: '✅ Member added!' });
-                }
+                if (query) await sock.groupParticipantsUpdate(from, [query.replace(/[^0-9]/g, '') + '@s.whatsapp.net'], 'add');
             }
             else if (command === 'warn') {
                 const mentioned = msg.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
@@ -345,14 +225,11 @@ async function startBot() {
             else if (command === 'vcf') {
                 const metadata = await sock.groupMetadata(from);
                 let vcfData = '';
-                metadata.participants.forEach((p, i) => {
-                    vcfData += `BEGIN:VCARD\nVERSION:3.0\nFN:Member ${i + 1}\nTEL;TYPE=CELL:${p.id.split('@')[0]}\nEND:VCARD\n`;
-                });
+                metadata.participants.forEach((p, i) => { vcfData += `BEGIN:VCARD\nVERSION:3.0\nFN:Member ${i + 1}\nTEL;TYPE=CELL:${p.id.split('@')[0]}\nEND:VCARD\n`; });
                 await sock.sendMessage(from, { document: Buffer.from(vcfData), fileName: 'contacts.vcf', mimetype: 'text/vcard' });
             }
         }
 
-        // 4. SECRET TOOLS (.vv)
         if (command === 'vv') {
             const quotedMsg = msg.message.extendedTextMessage?.contextInfo?.quotedMessage;
             const viewOnce = quotedMsg?.viewOnceMessage?.message || quotedMsg?.viewOnceMessageV2?.message;
@@ -367,8 +244,6 @@ async function startBot() {
                 await sock.sendMessage(from, { text: '❌ Kisi View-Once message ko reply karke .vv likho!' });
             }
         }
-
-        // 5. FIXED STICKER CONVERTER (.s / .sticker)
         else if (command === 's' || command === 'sticker') {
             const quotedMsg = msg.message.extendedTextMessage?.contextInfo?.quotedMessage;
             const imageMsg = msg.message.imageMessage || quotedMsg?.imageMessage;
@@ -378,88 +253,41 @@ async function startBot() {
                     const stream = await downloadContentFromMessage(imageMsg, 'image');
                     let buffer = Buffer.from([]);
                     for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
-                    
-                    // Direct WhatsApp Compatible Sticker Format
-                    await sock.sendMessage(from, { 
-                        sticker: buffer,
-                        mimetype: 'image/webp'
-                    }, { quoted: msg });
-                    
+                    await sock.sendMessage(from, { sticker: buffer, mimetype: 'image/webp' }, { quoted: msg });
                     await sock.sendMessage(from, { react: { text: '✅', key: msg.key } });
-                } catch(e) {
-                    await sock.sendMessage(from, { text: '❌ Sticker banane mein error aaya!' });
-                }
-            } else {
-                await sock.sendMessage(from, { text: '❌ Kisi photo ko reply karke .s likho!' });
-            }
+                } catch(e) { await sock.sendMessage(from, { text: '❌ Sticker error!' }); }
+            } else { await sock.sendMessage(from, { text: '❌ Photo ko reply karke .s likho!' }); }
         }
-
-        // 6. FUN & GAMES
-        else if (command === 'joke') {
-            await sock.sendMessage(from, { text: '😂 Dost: Bhai tera computer kitna fast hai?\nMe: Screen touch karte hi dhooa nikal aata hai!' });
-        }
-        else if (command === 'fact') {
-            await sock.sendMessage(from, { text: '💡 Fact: Shahad (Honey) kabhi kharab nahi hota!' });
-        }
-        else if (command === 'truth') {
-            await sock.sendMessage(from, { text: '🎯 *TRUTH:* Sabse bada secret kya hai aapka?' });
-        }
-        else if (command === 'dare') {
-            await sock.sendMessage(from, { text: '🔥 *DARE:* Group mein ek funny voice note bhejo!' });
-        }
-        else if (command === 'roast') {
-            await sock.sendMessage(from, { text: `🔥 @${(msg.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || from).split('@')[0]} Aapki akal aur network, dono hamesha gayab rehte hain!`, mentions: [msg.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || from] });
-        }
-        else if (command === 'ship') {
-            await sock.sendMessage(from, { text: `❤️ Compatibility: ${Math.floor(Math.random() * 100)}%` });
-        }
-
-        // 7. AI CHAT
-        else if (command === 'ai' || command === 'gpt') {
-            if (!query) return await sock.sendMessage(from, { text: '❌ Sawal likho! e.g. .ai Hello' });
-            await sock.sendMessage(from, { text: `🤖 *BATMAN AI:* ${query} ka jawab process ho raha hai...` });
-        }
-
-        // 8. DOWNLOADERS
-        else if (['play', 'song', 'video', 'ytmp4', 'ig', 'fb'].includes(command)) {
-            if (!query) return await sock.sendMessage(from, { text: `❌ Link ya naam likho! e.g. .${command} link` });
-            await sock.sendMessage(from, { text: `📥 Downloading: *${query}*...\nThodi der wait karein!` });
-        }
-
-        // 9. SYSTEM
-        else if (command === 'ping' || command === 'speed') {
-            await sock.sendMessage(from, { text: '🚀 BATMAN MD BOT Speed: 0.01s' });
-        }
-        else if (command === 'runtime' || command === 'uptime') {
-            const uptime = process.uptime();
-            await sock.sendMessage(from, { text: `⏱️ Uptime: ${Math.floor(uptime / 60)}m ${Math.floor(uptime % 60)}s` });
-        }
-        else if (command === 'clearcache') {
-            await sock.sendMessage(from, { text: '🧹 Cache cleared!' });
-        }
+        else if (command === 'joke') await sock.sendMessage(from, { text: '😂 Dost: Tera pc fast hai?\nMe: Touch karte hi dhooa nikalta hai!' });
+        else if (command === 'fact') await sock.sendMessage(from, { text: '💡 Honey kabhi kharab nahi hota!' });
+        else if (command === 'truth') await sock.sendMessage(from, { text: '🎯 Sabse bada secret kya hai aapka?' });
+        else if (command === 'dare') await sock.sendMessage(from, { text: '🔥 Group mein funny voice note bhejo!' });
+        else if (command === 'roast') await sock.sendMessage(from, { text: `🔥 @${(msg.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || from).split('@')[0]} Aapki akal gayab rehti hai!`, mentions: [msg.message.extendedTextMessage?.contextInfo?.mentionedJid?.[0] || from] });
+        else if (command === 'ship') await sock.sendMessage(from, { text: `❤️ Compatibility: ${Math.floor(Math.random() * 100)}%` });
+        else if (command === 'ai' || command === 'gpt') { if (!query) return await sock.sendMessage(from, { text: '❌ Sawal likho!' }); await sock.sendMessage(from, { text: `🤖 *BATMAN AI:* ${query}` }); }
+        else if (['play', 'song', 'video', 'ytmp4', 'ig', 'fb'].includes(command)) { if (!query) return await sock.sendMessage(from, { text: '❌ Link/Name likho!' }); await sock.sendMessage(from, { text: `📥 Downloading: *${query}*...` }); }
+        else if (command === 'ping' || command === 'speed') await sock.sendMessage(from, { text: '🚀 Speed: 0.01s' });
+        else if (command === 'runtime' || command === 'uptime') await sock.sendMessage(from, { text: `⏱️ Uptime: ${Math.floor(process.uptime() / 60)}m` });
+        else if (command === 'clearcache') await sock.sendMessage(from, { text: '🧹 Cache cleared!' });
     });
 }
 
-// Fixed Pairing Code Route
 app.post('/get-pairing-code', async (req, res) => {
     let phone = req.body.phone;
-    if (!phone) return res.status(400).json({ error: 'Phone number required' });
+    if (!phone) return res.status(400).json({ error: 'Phone required' });
     phone = phone.replace(/[^0-9]/g, '');
-
     try {
-        if (fs.existsSync(sessionPath)) {
-            fs.rmSync(sessionPath, { recursive: true, force: true });
-        }
+        if (fs.existsSync(sessionPath)) fs.rmSync(sessionPath, { recursive: true, force: true });
         await startBot();
-        
         setTimeout(async () => {
             try {
                 let code = await sock.requestPairingCode(phone);
-                code = code?.match(/.{1,4}/g)?.join('-') || code;
-                res.json({ code });
-            } catch (e) {
-                res.status(500).json({ error: 'Failed to request pairing code. Please retry.' });
-            }
+                res.json({ code: code?.match(/.{1,4}/g)?.join('-') || code });
+            } catch (e) { res.status(500).json({ error: 'Failed' }); }
         }, 3000);
+    } catch (err) { res.status(500).json({ error: 'Server Error' }); }
+});
 
- 
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => { console.log(`Server running on ${PORT}`); startBot(); });
+                
