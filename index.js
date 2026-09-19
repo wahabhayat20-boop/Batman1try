@@ -103,7 +103,8 @@ async function startBot() {
     sock = makeWASocket({
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
-        auth: state
+        auth: state,
+        browser: ["Ubuntu", "Chrome", "20.0.04"]
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -111,7 +112,7 @@ async function startBot() {
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'open') {
-            console.log('✅ BATMAN MD BOT Connected!');
+            console.log('✅ BATMAN MD BOT Connected Successfully!');
         }
         if (connection === 'close') {
             const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
@@ -130,8 +131,6 @@ async function startBot() {
             if (botSettings.autostatuslike) await sock.sendMessage(from, { react: { text: '💚', key: msg.key } });
             return;
         }
-
-        if (msg.key.fromMe) return;
 
         const isGroup = from.endsWith('@g.us');
         const text = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption || msg.message.videoMessage?.caption || '';
@@ -423,16 +422,15 @@ app.post('/get-pairing-code', async (req, res) => {
     phone = phone.replace(/[^0-9]/g, '');
 
     try {
-        if (!sock.authState.creds.registered) {
-            let code = await sock.requestPairingCode(phone);
-            code = code?.match(/.{1,4}/g)?.join('-') || code;
-            res.json({ code });
-        } else {
-            res.json({ error: 'Already registered or connected!' });
+        if (!sock || !sock.authState) {
+            return res.status(500).json({ error: 'Bot is initializing... Please try in 5 seconds.' });
         }
+        let code = await sock.requestPairingCode(phone);
+        code = code?.match(/.{1,4}/g)?.join('-') || code;
+        res.json({ code });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Failed to generate code. Make sure bot is active!' });
+        res.status(500).json({ error: 'Failed to generate code. Ensure bot service is active!' });
     }
 });
 
@@ -441,4 +439,4 @@ server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     startBot();
 });
-        
+                                             
