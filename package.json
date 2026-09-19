@@ -1,0 +1,16 @@
+{
+  "name": "batman-md-bot",
+  "version": "1.0.0",
+  "description": "WhatsApp Multi-Device Bot with Pairing Code",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.6.0",
+    "express": "^4.19.2",
+    "pino": "^9.0.0",
+    "qrcode": "^1.5.3",
+    "socket.io": "^4.7.5"
+  }
+}
