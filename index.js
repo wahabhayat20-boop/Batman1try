@@ -4,6 +4,7 @@ const http = require('http');
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
@@ -97,7 +98,15 @@ app.get('/', (req, res) => {
     `);
 });
 
-app.get('/ping', (req, res) => res.send('OK'));
+// Keep Alive Endpoint
+app.get('/ping', (req, res) => res.send('PONG'));
+
+// Anti-Sleep Self Ping Engine
+setInterval(() => {
+    axios.get(`http://localhost:${process.env.PORT || 3000}/ping`)
+        .then(() => console.log('🔄 Anti-Sleep Keep Alive Ping Sent!'))
+        .catch(() => {});
+}, 4 * 60 * 1000); // Har 4 minute baad ping
 
 async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('session');
@@ -116,7 +125,7 @@ async function startBot() {
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'open') {
-            console.log('✅ BATMAN MD BOT Connected Successfully!');
+            console.log('✅ BATMAN MD BOT Connected & 24/7 Active!');
         }
         if (connection === 'close') {
             const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
@@ -359,17 +368,29 @@ async function startBot() {
             }
         }
 
-        // 5. STICKER & MEDIA CONVERTER
+        // 5. FIXED STICKER CONVERTER (.s / .sticker)
         else if (command === 's' || command === 'sticker') {
             const quotedMsg = msg.message.extendedTextMessage?.contextInfo?.quotedMessage;
             const imageMsg = msg.message.imageMessage || quotedMsg?.imageMessage;
             if (imageMsg) {
-                const stream = await downloadContentFromMessage(imageMsg, 'image');
-                let buffer = Buffer.from([]);
-                for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
-                await sock.sendMessage(from, { sticker: buffer });
+                await sock.sendMessage(from, { react: { text: '⏳', key: msg.key } });
+                try {
+                    const stream = await downloadContentFromMessage(imageMsg, 'image');
+                    let buffer = Buffer.from([]);
+                    for await (const chunk of stream) buffer = Buffer.concat([buffer, chunk]);
+                    
+                    // Direct WhatsApp Compatible Sticker Format
+                    await sock.sendMessage(from, { 
+                        sticker: buffer,
+                        mimetype: 'image/webp'
+                    }, { quoted: msg });
+                    
+                    await sock.sendMessage(from, { react: { text: '✅', key: msg.key } });
+                } catch(e) {
+                    await sock.sendMessage(from, { text: '❌ Sticker banane mein error aaya!' });
+                }
             } else {
-                await sock.sendMessage(from, { text: '❌ Kisi photo par reply karke .s likho!' });
+                await sock.sendMessage(from, { text: '❌ Kisi photo ko reply karke .s likho!' });
             }
         }
 
@@ -441,15 +462,4 @@ app.post('/get-pairing-code', async (req, res) => {
             }
         }, 3000);
 
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Server initialization error!' });
-    }
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    startBot();
-});
-            
+ 
