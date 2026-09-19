@@ -1,12 +1,10 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
 const pino = require('pino');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
 
 let sock;
 
@@ -19,10 +17,84 @@ const botSettings = {
     warnings: {}
 };
 
-app.use(express.static('public'));
 app.use(express.json());
 
-// Keep-Alive route for Render & UptimeRobot
+// Main Web Interface (Pairing Code Panel)
+app.get('/', (req, res) => {
+    res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>BATMAN MD BOT - PAIRING PANEL</title>
+        <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+            body { background: #0a0a0c; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+            .card { background: #121318; border: 1px solid #1f222e; padding: 30px; border-radius: 16px; max-width: 400px; width: 100%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+            .avatar { width: 90px; height: 90px; border-radius: 50%; border: 3px solid #ff2a2a; margin-bottom: 15px; object-fit: cover; }
+            h2 { font-size: 20px; color: #ff2a2a; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px; }
+            p { font-size: 13px; color: #a0a5b5; margin-bottom: 20px; }
+            input { width: 100%; padding: 14px; background: #1a1c24; border: 1px solid #2a2e3d; border-radius: 8px; color: #fff; font-size: 15px; text-align: center; margin-bottom: 15px; outline: none; }
+            input:focus { border-color: #ff2a2a; }
+            button { width: 100%; padding: 14px; background: #ff2a2a; color: #fff; border: none; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.3s; }
+            button:hover { background: #d61c1c; }
+            .code-box { margin-top: 20px; padding: 15px; background: #1a1c24; border: 1px dashed #ff2a2a; border-radius: 8px; font-size: 22px; font-weight: bold; color: #00ff88; letter-spacing: 3px; display: none; }
+            .loading { display: none; color: #ffca28; margin-top: 15px; font-size: 14px; }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <img src="https://cdn.phototourl.com/free/2026-09-19-360ade3c-bad1-4cfb-8e77-506cfc80e765.jpg" class="avatar" alt="Logo">
+            <h2>BATMAN MD BOT</h2>
+            <p>Enter your WhatsApp Number with Country Code (e.g. 923001234567)</p>
+            <input type="text" id="phone" placeholder="923xxxxxxxxx">
+            <button onclick="getCode()">GET PAIRING CODE</button>
+            <div id="loading" class="loading">Generating Code... Please wait!</div>
+            <div id="code" class="code-box"></div>
+        </div>
+
+        <script>
+            async function getCode() {
+                const phone = document.getElementById('phone').value.trim();
+                const loading = document.getElementById('loading');
+                const codeBox = document.getElementById('code');
+
+                if(!phone) {
+                    alert('Please enter a valid phone number!');
+                    return;
+                }
+
+                loading.style.display = 'block';
+                codeBox.style.display = 'none';
+
+                try {
+                    const res = await fetch('/get-pairing-code', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ phone })
+                    });
+                    const data = await res.json();
+                    loading.style.display = 'none';
+
+                    if(data.code) {
+                        codeBox.innerText = data.code;
+                        codeBox.style.display = 'block';
+                    } else {
+                        alert(data.error || 'Failed to get code!');
+                    }
+                } catch(err) {
+                    loading.style.display = 'none';
+                    alert('Error connecting to server!');
+                }
+            }
+        </script>
+    </body>
+    </html>
+    `);
+});
+
+// Keep-Alive route
 app.get('/ping', (req, res) => res.send('OK'));
 
 async function startBot() {
@@ -40,7 +112,6 @@ async function startBot() {
         const { connection, lastDisconnect } = update;
         if (connection === 'open') {
             console.log('✅ BATMAN MD BOT Connected!');
-            io.emit('connected', 'Bot Successfully Connected!');
         }
         if (connection === 'close') {
             const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
@@ -65,7 +136,7 @@ async function startBot() {
         const isGroup = from.endsWith('@g.us');
         const text = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption || msg.message.videoMessage?.caption || '';
 
-        // Auto React on Normal Messages
+        // Auto React
         if (botSettings.autoreact && text && !text.startsWith('.')) {
             const emojis = ['🔥', '⚡', '🤖', '👑', '💯'];
             await sock.sendMessage(from, { react: { text: emojis[Math.floor(Math.random() * emojis.length)], key: msg.key } });
@@ -84,7 +155,7 @@ async function startBot() {
         const args = text.trim().split(/ +/).slice(1);
         const query = args.join(' ');
 
-        // 1. MENU COMMAND (With Image & Channel Link)
+        // 1. MENU COMMAND
         if (command === 'menu' || command === 'help') {
             const menuText = `╭━━━〔 🔥 𝘽𝘼𝙏𝙈𝘼𝙉 𝙈𝘿 𝘽𝙊𝙏 🔥 〕━━━╮
 ┃ 
@@ -353,16 +424,15 @@ app.post('/get-pairing-code', async (req, res) => {
 
     try {
         if (!sock.authState.creds.registered) {
-            setTimeout(async () => {
-                let code = await sock.requestPairingCode(phone);
-                code = code?.match(/.{1,4}/g)?.join('-') || code;
-                res.json({ code });
-            }, 3000);
+            let code = await sock.requestPairingCode(phone);
+            code = code?.match(/.{1,4}/g)?.join('-') || code;
+            res.json({ code });
         } else {
-            res.json({ error: 'Already registered' });
+            res.json({ error: 'Already registered or connected!' });
         }
     } catch (err) {
-        res.status(500).json({ error: 'Failed to generate code' });
+        console.error(err);
+        res.status(500).json({ error: 'Failed to generate code. Make sure bot is active!' });
     }
 });
 
@@ -371,4 +441,4 @@ server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     startBot();
 });
-      
+        
